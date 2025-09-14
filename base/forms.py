@@ -61,7 +61,9 @@ class UserCreationForm(auth_forms.UserCreationForm):
     def clean_email(self) -> str:
         email = self.cleaned_data["email"]
         if User.objects.filter(email=email).count() > 0:
-            raise forms.ValidationError("A user with that email already exists.")
+            raise forms.ValidationError(
+                "A user with that email already exists."
+            )
 
         return email
 
@@ -206,7 +208,9 @@ class UpdateClassForm(forms.ModelForm):
             )
 
         if self.instance.allow_other_animals is False:
-            enrollments = models.Enrollment.objects.filter(connectedclass=self.instance)
+            enrollments = models.Enrollment.objects.filter(
+                connectedclass=self.instance
+            )
             for enrollment in enrollments:
                 enrollment.animal = self.instance.default_animal
 
@@ -252,7 +256,9 @@ class JoinClass(forms.Form):
         if models.EnrollmentRequest.objects.filter(
             connectedclass=connectedclass, student=self.user
         ).exists():
-            raise forms.ValidationError("Already requested enrollment in class.")
+            raise forms.ValidationError(
+                "Already requested enrollment in class."
+            )
 
         if connectedclass.teacher == self.user:
             raise forms.ValidationError("Cannot enroll in class as teacher.")
@@ -266,6 +272,13 @@ class JoinClass(forms.Form):
         return models.EnrollmentRequest.create_new(self.user, connectedclass)
 
 
+class RequestTokens(forms.Form):
+    "A form to request more enrollment tokens"
+
+    institution = forms.CharField(max_length=255)
+    tokens_needed = forms.IntegerField(min_value=1, max_value=999)
+
+
 class BreedHerd(forms.Form):
     "A form to breed herds."
 
@@ -276,7 +289,9 @@ class BreedHerd(forms.Form):
         assignment_step: models.AssignmentStep
 
     males = forms.JSONField(
-        widget=forms.TextInput(attrs={"class": "full-width", "disabled": True}),
+        widget=forms.TextInput(
+            attrs={"class": "full-width", "disabled": True}
+        ),
         label="",
         initial=list,
     )
@@ -320,13 +335,16 @@ class BreedHerd(forms.Form):
             assignment_fulfillment = models.AssignmentFulfillment.objects.get(
                 assignment=assignment, enrollment=class_auth.enrollment
             )
-            self.validation_catch.assignment_fulfillment = assignment_fulfillment
+            self.validation_catch.assignment_fulfillment = (
+                assignment_fulfillment
+            )
         except models.AssignmentFulfillment.DoesNotExist:
             return False
 
         try:
             assignment_step = models.AssignmentStep.objects.get(
-                assignment=assignment, number=assignment_fulfillment.current_step
+                assignment=assignment,
+                number=assignment_fulfillment.current_step,
             )
             self.validation_catch.assignment_step = assignment_step
         except models.AssignmentStep.DoesNotExist:
@@ -345,7 +363,9 @@ class BreedHerd(forms.Form):
 
         return self.validate_assignment(class_auth)
 
-    def save(self, herd_auth: HerdAuth.EnrollmentHerd) -> models.Herd.BreedingResults:
+    def save(
+        self, herd_auth: HerdAuth.EnrollmentHerd
+    ) -> models.Herd.BreedingResults:
         assignment = self.validation_catch.assignment
         assignment = f"{assignment.id}: {assignment.name}"
         max_len = models.Animal._meta.get_field("assignment").max_length
@@ -390,13 +410,16 @@ class SubmitAnimal(forms.Form):
             assignment_fulfillment = models.AssignmentFulfillment.objects.get(
                 assignment=assignment, enrollment=class_auth.enrollment
             )
-            self.validation_catch.assignment_fulfillment = assignment_fulfillment
+            self.validation_catch.assignment_fulfillment = (
+                assignment_fulfillment
+            )
         except models.AssignmentFulfillment.DoesNotExist:
             return False
 
         try:
             assignment_step = models.AssignmentStep.objects.get(
-                assignment=assignment, number=assignment_fulfillment.current_step
+                assignment=assignment,
+                number=assignment_fulfillment.current_step,
             )
             self.validation_catch.assignment_step = assignment_step
         except models.AssignmentStep.DoesNotExist:
@@ -418,7 +441,9 @@ class SubmitAnimal(forms.Form):
         animal.herd = animal.connectedclass.class_herd
         animal.save()
 
-    def save(self, class_auth: ClassAuth.Student, animal: models.Animal) -> None:
+    def save(
+        self, class_auth: ClassAuth.Student, animal: models.Animal
+    ) -> None:
         animal.herd = None
         animal.save()
 
@@ -487,14 +512,18 @@ class UpdateAssignment(forms.ModelForm):
     duedate = forms.DateTimeField(
         widget=forms.DateTimeInput(attrs={"type": "datetime-local"})
     )
-    steps = forms.JSONField(disabled=True, widget=forms.TextInput, required=False)
+    steps = forms.JSONField(
+        disabled=True, widget=forms.TextInput, required=False
+    )
 
     def __init__(self, *args, **kwargs):
         super(UpdateAssignment, self).__init__(*args, **kwargs)
 
         self.fields["steps"].initial = [
             x.step
-            for x in models.AssignmentStep.objects.filter(assignment=self.instance)
+            for x in models.AssignmentStep.objects.filter(
+                assignment=self.instance
+            )
         ]
 
     class Meta:
@@ -512,7 +541,9 @@ class UpdateEnrollmentForm(forms.ModelForm):
 
         self.fields["animal"] = forms.ChoiceField(
             label="Animal Filter",
-            choices=Traitset(self.instance.connectedclass.traitset).animal_choices,
+            choices=Traitset(
+                self.instance.connectedclass.traitset
+            ).animal_choices,
             disabled=not self.instance.connectedclass.allow_other_animals,
         )
 
@@ -520,16 +551,18 @@ class UpdateEnrollmentForm(forms.ModelForm):
             max_length=200,
             label="Team Name",
             disabled=not self.instance.connectedclass.allow_herd_rename,
-            initial=self.instance.herd.name.removesuffix("'s <herd>").removesuffix(
-                "' <herd>"
-            ),
+            initial=self.instance.herd.name.removesuffix(
+                "'s <herd>"
+            ).removesuffix("' <herd>"),
         )
 
     def save(self, *args, **kwargs):
         super(UpdateEnrollmentForm, self).save(*args, **kwargs)
 
-        self.instance.herd.name = models.Enrollment.generate_herd_from_team_name(
-            self.cleaned_data["team_name"]
+        self.instance.herd.name = (
+            models.Enrollment.generate_herd_from_team_name(
+                self.cleaned_data["team_name"]
+            )
         )
 
         self.instance.herd.save()

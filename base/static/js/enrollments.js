@@ -35,6 +35,8 @@ function confirmEnrollment(classId, enrollmentRequestId) {
                     )
                 );
 
+                $("#tokens").val($("#tokens").val() - 1)
+
                 filterAll();
             }
         }

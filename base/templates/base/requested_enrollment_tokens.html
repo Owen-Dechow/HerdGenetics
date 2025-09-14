@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load animal_filters %}
+{% load path_builder %}
+
+{% block head %}
+<link rel="stylesheet" href="{% static 'css/stdform.css' %}" type="text/css">
+{% endblock head %}
+
+{% block navpath %}
+{% build_class_path "as-link pad-small" %}
+{% build_enrollments_path "as-link pad-small" %}
+{% titled_self_path "Request Tokens" "as-link pad-small" %}
+{% endblock navpath %}
+
+{% block main %}
+<form  class="std-form margin-auto">
+    <h1 class="margin-auto">Request Sent</h1>
+    <p>
+        Your request for enrollment tokens has been sent.
+        A followup email will be sent once the request has been reviewed.
+        Request are typically reviewed within twenty four hours.
+    </p>
+</form>
+
+{% endblock main %}
+
+{% block end %}
+<script>
+    loadEnrollmentList(getEnrollments("{{class.id}}"));
+</script>
+
+{% load_filter_dict %}
+{% endblock end %}

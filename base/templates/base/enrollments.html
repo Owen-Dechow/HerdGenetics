@@ -15,6 +15,11 @@
 
 {% block main %}
 <h1 class="margin-auto">Enrollments</h1>
+<p class="center-text">
+    Tokens: <input disabled id="tokens" type="number" value="{{class.enrollment_tokens}}">
+    <a class="background-green as-btn border-radius pad" href="/class/{{class.id}}/enrollments/request-tokens">Request More Tokens</a>
+</p>
+
 <div id="enrollments" class="enrollments">
     <loading-symbol name="enrollments"></loading-symbol>
 </div>

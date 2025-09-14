@@ -28,6 +28,8 @@ urlpatterns = [
     path("class/<int:classid>/genomic-test", views.genomic_test),
     path("class/<int:classid>/running-genomic-test", views.genomic_test_running),
     path("class/<int:classid>/enrollments", views.enrollments),
+    path("class/<int:classid>/enrollments/request-tokens", views.request_tokens),
+    path("class/<int:classid>/enrollments/request-tokens/sent", views.requested_tokens),
     path(
         "class/<int:classid>/enrollments/update",
         views.update_enrollment,

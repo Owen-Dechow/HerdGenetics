@@ -22,12 +22,14 @@
 
         {{form}}
 
-
         {% if teacher_status %}
         <fieldset class="grid-auto-row gap">
             <legend>Management</legend>
             <a class="as-btn full-width background-a pad border-radius" href="/class/{{class.id}}/enrollments">
                 Enrollments
+            </a>
+            <a class="background-a as-btn border-radius pad" href="/class/{{class.id}}/enrollments/request-tokens">
+                Request More Enrollment Tokens
             </a>
             <a class="as-btn full-width background-a pad border-radius" href="/class/{{class.id}}/assignments">
                 Assignments

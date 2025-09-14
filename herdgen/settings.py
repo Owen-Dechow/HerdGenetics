@@ -23,7 +23,9 @@ env = Env()
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-(ck%#r(ix+yo*066$s#32ct3$!fmkmc!j3+ui&+#$v4+il*qf*"
+SECRET_KEY = (
+    "django-insecure-(ck%#r(ix+yo*066$s#32ct3$!fmkmc!j3+ui&+#$v4+il*qf*"
+)
 
 SECURE_SSL_REDIRECT = env("SECURE_SSL_REDIRECT", bool)
 
@@ -170,6 +172,7 @@ LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/"
 LOGIN_URL = "/auth/login"
 
+MANAGERS = ADMINS = [("Owen Dechow", "herdgenetics@gmail.com")]
 if env("TERMINAL_EMAIL", bool):
     EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 else:
@@ -203,4 +206,3 @@ LOGGING = {
         },
     },
 }
-

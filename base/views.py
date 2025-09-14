@@ -1,8 +1,10 @@
+import re
 from sys import prefix
 from django.contrib import messages
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import LoginView
+from django.core.mail import mail_admins, mail_managers
 from django.db import transaction
 from django.http import (
     FileResponse,
@@ -71,7 +73,9 @@ def account(request: HttpRequest) -> HttpResponse | HttpResponseRedirect:
                 request.user.delete()
                 return HttpResponseRedirect("/")
         else:
-            form = forms.Account(request.POST, prefix="normal", instance=request.user)
+            form = forms.Account(
+                request.POST, prefix="normal", instance=request.user
+            )
             if form.is_valid():
                 form.save()
                 return HttpResponseRedirect("/auth/account")
@@ -92,7 +96,9 @@ def homepage(request: HttpRequest) -> HttpResponse:
         owned_classes = models.Class.objects.select_related("teacher").filter(
             teacher=request.user, deleted=False
         )
-        enrollments = models.Enrollment.objects.select_related("connectedclass").filter(
+        enrollments = models.Enrollment.objects.select_related(
+            "connectedclass"
+        ).filter(
             student=request.user,
             connectedclass__deleted=False,
         )
@@ -144,7 +150,9 @@ def openclass(request: HttpRequest, classid: int) -> HttpResponse:
         enrollment_form = None
         if request.method == "POST":
             form = forms.UpdateClassForm(
-                class_auth.connectedclass, request.POST, instance=connectedclass
+                class_auth.connectedclass,
+                request.POST,
+                instance=connectedclass,
             )
             if form.is_valid():
                 form.save()
@@ -185,6 +193,58 @@ def enrollments(request: HttpRequest, classid: int) -> HttpResponse:
     return render(request, "base/enrollments.html", {"class": connectedclass})
 
 
+@login_required
+def request_tokens(request: HttpRequest, classid: int) -> HttpResponse:
+    class_auth = auth_class(request, classid)
+    connectedclass = class_auth.connectedclass
+
+    if type(class_auth) not in ClassAuth.TEACHER_ADMIN:
+        raise Http404("Must be teacher to request tokens")
+
+    if request.method == "POST":
+        form = forms.RequestTokens(request.POST)
+        if form.is_valid():
+            institution = form.cleaned_data["institution"]
+            needed = form.cleaned_data["tokens_needed"]
+
+            msg = (
+                "Request for enrollment tokens:\n"
+                + f"Institution: {institution}\n"
+                + f"Professor: {request.user.get_full_name()} ({request.user.email})\n"
+                + f"Tokens Requested: {needed}\n"
+                + f"Class ID: {connectedclass.id}\n"
+                + f"Class Name: {connectedclass.name}\n"
+                + f"Class Info: \n{connectedclass.info}\n"
+            )
+
+            mail_managers(f"Token Request: {institution}", msg)
+        return HttpResponseRedirect(
+            f"/class/{connectedclass.id}/enrollments/request-tokens/sent"
+        )
+    else:
+        form = forms.RequestTokens
+
+    return render(
+        request,
+        "base/request_enrollment_tokens.html",
+        {"class": connectedclass, "form": form},
+    )
+
+
+def requested_tokens(request: HttpRequest, classid: int):
+    class_auth = auth_class(request, classid)
+    connectedclass = class_auth.connectedclass
+
+    if type(class_auth) not in ClassAuth.TEACHER_ADMIN:
+        raise Http404("Must be teacher to request tokens")
+
+    return render(
+        request,
+        "base/requested_enrollment_tokens.html",
+        {"class": connectedclass},
+    )
+
+
 @transaction.atomic
 @login_required
 def assignments(
@@ -197,7 +257,9 @@ def assignments(
         form = forms.NewAssignment(request.POST)
         if form.is_valid():
             assignment = form.save(connectedclass)
-            return HttpResponseRedirect(f"/class/{classid}/assignments/{assignment.id}")
+            return HttpResponseRedirect(
+                f"/class/{classid}/assignments/{assignment.id}"
+            )
     else:
         form = forms.NewAssignment
 
@@ -212,7 +274,8 @@ def assignments(
             a,
             models.AssignmentStep.objects.filter(assignment=a).count(),
             models.AssignmentFulfillment.objects.filter(assignment=a).order_by(
-                "enrollment__student__first_name", "enrollment__student__last_name"
+                "enrollment__student__first_name",
+                "enrollment__student__last_name",
             ),
         )
         for a in models.Assignment.objects.filter(
@@ -255,7 +318,11 @@ def openassignment(
     return render(
         request,
         "base/openassignment.html",
-        {"form": form, "assignment": assignment, "class": class_auth.connectedclass},
+        {
+            "form": form,
+            "assignment": assignment,
+            "class": class_auth.connectedclass,
+        },
     )
 
 
@@ -331,7 +398,9 @@ def traitset_overview(request: HttpRequest, traitsetname: str) -> HttpResponse:
     except FileNotFoundError as e:
         raise Http404(e)
 
-    return render(request, "base/traitset_overview.html", {"traitset": traitset})
+    return render(
+        request, "base/traitset_overview.html", {"traitset": traitset}
+    )
 
 
 def traitsets(request: HttpRequest) -> HttpResponse:
@@ -343,7 +412,10 @@ def traitsets(request: HttpRequest) -> HttpResponse:
     return render(
         request,
         "base/traitsets.html",
-        context={"traitsets": traitsets, "deprecated_traitsets": deprecated_traitsets},
+        context={
+            "traitsets": traitsets,
+            "deprecated_traitsets": deprecated_traitsets,
+        },
     )
 
 
@@ -351,13 +423,17 @@ def traitsets(request: HttpRequest) -> HttpResponse:
 @require_POST
 @transaction.atomic
 @login_required
-def update_enrollment(request: HttpRequest, classid: int) -> HttpResponseRedirect:
+def update_enrollment(
+    request: HttpRequest, classid: int
+) -> HttpResponseRedirect:
     class_auth = auth_class(request, classid)
 
     if type(class_auth) is not ClassAuth.Student:
         raise Http404("Must be student to update filter")
 
-    form = forms.UpdateEnrollmentForm(request.POST, instance=class_auth.enrollment)
+    form = forms.UpdateEnrollmentForm(
+        request.POST, instance=class_auth.enrollment
+    )
     if form.is_valid():
         form.save()
     else:
@@ -401,7 +477,9 @@ def deleteclass(request: HttpRequest, classid: int) -> HttpResponseRedirect:
 @transaction.atomic
 @login_required
 @require_POST
-def breed_herd(request: HttpRequest, classid: int, herdid: int) -> HttpResponseRedirect:
+def breed_herd(
+    request: HttpRequest, classid: int, herdid: int
+) -> HttpResponseRedirect:
     form = forms.BreedHerd(request.POST)
     class_auth = auth_class(request, classid, "class_herd")
     herd_auth = auth_herd(class_auth, herdid, "connectedclass")
@@ -425,7 +503,8 @@ def breed_herd(request: HttpRequest, classid: int, herdid: int) -> HttpResponseR
 
         if breeding_results.recessive_deaths == 1:
             messages.info(
-                request, "There was one death due to undesirable genetic recessives."
+                request,
+                "There was one death due to undesirable genetic recessives.",
             )
         else:
             messages.info(
@@ -446,7 +525,9 @@ def genomic_test(request: HttpRequest, classid: int) -> HttpResponseRedirect:
     if type(class_auth) not in ClassAuth.TEACHER_ADMIN:
         raise Http404("Must be teacher to genomic test")
 
-    class_auth.connectedclass.recalculate_ptas(classid, request.user.email, True)
+    class_auth.connectedclass.recalculate_ptas(
+        classid, request.user.email, True
+    )
 
     return HttpResponseRedirect(f"/class/{classid}/running-genomic-test")
 
@@ -538,7 +619,9 @@ def remove_enrollment(
         raise Http404("Must be teacher to remove enrollment")
 
     enrollment = get_object_or_404(
-        models.Enrollment, id=enrollmentid, connectedclass=class_auth.connectedclass
+        models.Enrollment,
+        id=enrollmentid,
+        connectedclass=class_auth.connectedclass,
     )
     enrollment.delete()
 
@@ -548,14 +631,18 @@ def remove_enrollment(
 @login_required
 @transaction.atomic
 @require_POST
-def deny_enrollment(request: HttpRequest, classid: int, requestid: int) -> JsonResponse:
+def deny_enrollment(
+    request: HttpRequest, classid: int, requestid: int
+) -> JsonResponse:
     class_auth = auth_class(request, classid)
 
     if type(class_auth) not in ClassAuth.TEACHER_ADMIN:
         raise Http404("Must be teacher to deny enrollment")
 
     enrollment_request = get_object_or_404(
-        models.EnrollmentRequest, id=requestid, connectedclass=class_auth.connectedclass
+        models.EnrollmentRequest,
+        id=requestid,
+        connectedclass=class_auth.connectedclass,
     )
     enrollment_request.delete()
 
@@ -567,7 +654,9 @@ def generating_file(request: HttpRequest, classid: int) -> HttpResponse:
     class_auth = auth_class(request, classid)
 
     return render(
-        request, "base/generatingfile.html", {"class": class_auth.connectedclass}
+        request,
+        "base/generatingfile.html",
+        {"class": class_auth.connectedclass},
     )
 
 
@@ -576,12 +665,16 @@ def genomic_test_running(request: HttpRequest, classid: int) -> HttpResponse:
     class_auth = auth_class(request, classid)
 
     return render(
-        request, "base/genomic_test_running.html", {"class": class_auth.connectedclass}
+        request,
+        "base/genomic_test_running.html",
+        {"class": class_auth.connectedclass},
     )
 
 
 @login_required
-def pta_calculation_running(request: HttpRequest, classid: int) -> HttpResponse:
+def pta_calculation_running(
+    request: HttpRequest, classid: int
+) -> HttpResponse:
     class_auth = auth_class(request, classid)
 
     return render(
@@ -628,7 +721,9 @@ def get_trend_chart(request: HttpRequest, classid: int) -> FileResponse:
 
 @login_required
 @transaction.atomic()
-def get_animal_chart(request: HttpRequest, classid: int) -> HttpResponseRedirect:
+def get_animal_chart(
+    request: HttpRequest, classid: int
+) -> HttpResponseRedirect:
     class_auth = auth_class(request, classid)
 
     if type(class_auth) not in ClassAuth.TEACHER_ADMIN:
@@ -650,15 +745,15 @@ def get_enrollments(request: HttpRequest, classid: int) -> JsonResponse:
     json = {
         "enrollments": [
             x.json_dict()
-            for x in models.Enrollment.objects.select_related("student").filter(
-                connectedclass=class_auth.connectedclass
-            )
+            for x in models.Enrollment.objects.select_related(
+                "student"
+            ).filter(connectedclass=class_auth.connectedclass)
         ],
         "enrollment_requests": [
             x.json_dict()
-            for x in models.EnrollmentRequest.objects.select_related("student").filter(
-                connectedclass=class_auth.connectedclass
-            )
+            for x in models.EnrollmentRequest.objects.select_related(
+                "student"
+            ).filter(connectedclass=class_auth.connectedclass)
         ],
     }
 
@@ -675,7 +770,9 @@ def get_herd(request: HttpRequest, classid: int, herdid: int) -> JsonResponse:
 
 
 @login_required
-def get_assignments(request: HttpRequest, classid: int, herdid: int) -> JsonResponse:
+def get_assignments(
+    request: HttpRequest, classid: int, herdid: int
+) -> JsonResponse:
     class_auth = auth_class(request, classid, "class_herd")
     herd_auth = auth_herd(class_auth, herdid)
 
@@ -712,6 +809,8 @@ def get_pedigree(
 ) -> JsonResponse:
     class_auth = auth_class(request, classid, "class_herd")
     herd_auth = auth_herd(class_auth, herdid)
-    animal = get_object_or_404(models.Animal.objects, id=animalid, herd=herd_auth.herd)
+    animal = get_object_or_404(
+        models.Animal.objects, id=animalid, herd=herd_auth.herd
+    )
 
     return JsonResponse(animal.pedigree)
